@@ -1,5 +1,4 @@
 import fasttext
-from huggingface_hub import hf_hub_download
 import gielladetect as gd
 import sqlite3
 from pathlib import Path
@@ -9,6 +8,7 @@ import csv
 parser = ArgumentParser(description="Detekter språk på avsnittene i en DH-lab-database")
 parser.add_argument("db_path", type=Path, help="Sti til databasefil")
 parser.add_argument("output_dir", type=Path, help="Mappe til utdata")
+parser.add_argument("--model_path", type=Path, default=None, help="Sti til lokal Glotlid-fil")
 
 args = parser.parse_args()
 
@@ -16,8 +16,13 @@ path = args.db_path
 
 output_path = args.output_dir / (path.stem + ".csv")
 
-glotlid_model_path = hf_hub_download(repo_id="cis-lmu/glotlid", filename="model_v3.bin", cache_dir=None)
-glotlid_model = fasttext.load_model(glotlid_model_path)
+if args.model_path:
+    model_file = str(args.model_path)
+else:
+    from huggingface_hub import hf_hub_download
+    model_file = hf_hub_download(repo_id="cis-lmu/glotlid", filename="model_v3.bin")
+
+glotlid_model = fasttext.load_model(model_file)
 
 def run_glotlid(text: str) -> tuple[str, float]:
     predictions = glotlid_model.predict(text)
