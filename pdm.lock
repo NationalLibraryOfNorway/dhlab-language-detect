@@ -4,8 +4,11 @@
 [metadata]
 groups = ["default"]
 strategy = ["cross_platform", "inherit_metadata"]
-lock_version = "4.4.1"
-content_hash = "sha256:02efceb30d87a7eb23c80c767f57b73c405920646f10a32c4c749e8cbe8dced9"
+lock_version = "4.5.1"
+content_hash = "sha256:43cba31b858b9d32332a16830cd476f44b5677d7c0a7af22daabd5c1cbf7c778"
+
+[[metadata.targets]]
+requires_python = "==3.12.*"
 
 [[package]]
 name = "anyio"
@@ -1861,7 +1864,7 @@ version = "2026.5"
 requires_python = ">=2"
 summary = "Provider of IANA time zone data"
 groups = ["default"]
-marker = "sys_platform == \"win32\" or sys_platform == \"emscripten\" or python_version >= \"3.9\""
+marker = "sys_platform == \"emscripten\" or sys_platform == \"win32\" or python_version >= \"3.9\""
 files = [
     {file = "tzdata-2026.5-py2.py3-none-any.whl", hash = "sha256:b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac"},
     {file = "tzdata-2026.5.tar.gz", hash = "sha256:8cc73c0a0bfca7dbfa59235d60b2eff82231dee33f53d206db1acd9173cfc0a7"},
