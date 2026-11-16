@@ -65,5 +65,5 @@ if __name__ == "__main__":
             csvs=csvs,
             max_workers=max_workers,
             lang_column=lang_column,
-            output_file=data_dir / f"language_statistics_{lang_column}.csv",
+            output_file=data_dir / f"language_statistics_{lang_column}.jsonl",
         )
