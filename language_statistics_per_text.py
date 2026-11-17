@@ -53,8 +53,10 @@ def count_detected_languages(csv_file: Path, lang_column: str) -> pd.DataFrame:
 def make_language_statistics_across_csvs(
     csvs: list[Path], max_workers: int, lang_column: str, output_file: Path
 ):
-    dfs = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with (
+        concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor,
+        output_file.open("w", encoding="utf-8") as f,
+    ):
         futures = [
             executor.submit(
                 count_detected_languages, csv_file=csv_file, lang_column=lang_column
@@ -62,10 +64,11 @@ def make_language_statistics_across_csvs(
             for csv_file in csvs
         ]
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(csvs)):
-            dfs.append(future.result())
-
-    df = pd.concat(dfs).to_json(output_file, index=False, lines=True, orient="records")
-    df.to_json(output_file, lines=True, orient="records")
+            df = future.result()
+            if df.empty:
+                continue
+            f.write(df.to_json(orient="records", lines=True, force_ascii=False))
+            f.flush()
 
 
 if __name__ == "__main__":
