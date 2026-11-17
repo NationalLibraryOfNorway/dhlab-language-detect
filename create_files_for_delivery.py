@@ -14,25 +14,40 @@ columns_for_delivery = (
 
 
 def get_metadata(dhlabid: str) -> dict:
-    """Get urn from dhlabid and add selected fields from nb.no/items metadata"""
-    r = requests.get(f"https://api.nb.no/dhlab/id/{dhlabid}")
-    urn = r.json()["urn"]["0"]
+    """Get urn from dhlabid and add selected fields from nb.no/items metadata.
 
-    r2 = requests.get(f"https://api.nb.no/catalog/v1/items/{urn}?fields=metadata")
+    If the lookup fails, a warning is printed and the fields are set to None,
+    so a single bad id does not stop the whole run.
+    """
+    metadata_dict = {
+        "urn": None,
+        "title": None,
+        "year": None,
+        "library_languages": None,
+        "names": None,
+    }
 
-    nb_metadata = r2.json().get("metadata")
+    try:
+        r = requests.get(f"https://api.nb.no/dhlab/id/{dhlabid}", timeout=30)
+        r.raise_for_status()
+        urn = r.json()["urn"]["0"]
+        metadata_dict["urn"] = urn
 
-    metadata_dict = {}
-    metadata_dict["urn"] = urn
-    metadata_dict["title"] = nb_metadata.get("title")
+        r2 = requests.get(
+            f"https://api.nb.no/catalog/v1/items/{urn}?fields=metadata", timeout=30
+        )
+        r2.raise_for_status()
+        nb_metadata = r2.json().get("metadata") or {}
 
-    metadata_dict["year"] = nb_metadata.get("originInfo").get("issued")
+        metadata_dict["title"] = nb_metadata.get("title")
+        metadata_dict["year"] = (nb_metadata.get("originInfo") or {}).get("issued")
+        metadata_dict["library_languages"] = [
+            x["code"] for x in nb_metadata.get("languages") or []
+        ]
+        metadata_dict["names"] = [x["name"] for x in nb_metadata.get("people") or []]
+    except (requests.RequestException, ValueError, KeyError, TypeError) as e:
+        print(f"Warning: could not get metadata for dhlabid {dhlabid}: {e!r}")
 
-    metadata_dict["library_languages"] = [
-        x["code"] for x in nb_metadata.get("languages")
-    ]
-
-    metadata_dict["names"] = [x["name"] for x in nb_metadata.get("people")]
     return metadata_dict
 
 
@@ -111,9 +126,7 @@ def make_files_for_delivery(in_file: Path, out_dir: Path) -> None:
 if __name__ == "__main__":
     delivery_out_dir = Path("data/sámi_language_statistics/")
 
-    gielladetect_statistics_file = Path(
-        "data/language_statistics_gielladetect.jsonl"
-    )
+    gielladetect_statistics_file = Path("data/language_statistics_gielladetect.jsonl")
     assert gielladetect_statistics_file.exists()
 
     print("Making gielladetect delivery files")
