@@ -82,15 +82,37 @@ def save_paragraphs_statistics_only(df: pd.DataFrame, out_file: Path) -> None:
     )
 
 
-def make_files_for_delivery(in_file: Path, out_dir: Path) -> None:
+def has_enough_sami_paragraphs(
+    paragraph_statistics: dict[str, float], min_sami_paragraph_share: float
+) -> bool:
+    """Check if at least one Sámi language has a paragraph share at or above the threshold"""
+    return any(
+        paragraph_statistics.get(lang, 0.0) >= min_sami_paragraph_share
+        for lang in sami_language_codes
+    )
+
+
+def make_files_for_delivery(
+    in_file: Path, out_dir: Path, min_sami_paragraph_share: float = 0.0
+) -> None:
     """Fetch nb metadata and add Sámi language statistics as columns separate from the other languages detected.
     Make separate files for language statistics based on % of tokens and % of paragraphs. The files share the same columns
+
+    Books are only kept if at least one Sámi language makes up at least
+    `min_sami_paragraph_share` (a fraction between 0 and 1) of the paragraphs.
     """
 
     data = []
+    num_skipped = 0
 
     for line in in_file.open():
         json_line = json.loads(line)
+
+        if not has_enough_sami_paragraphs(
+            json_line["language_statistics_paragraphs"], min_sami_paragraph_share
+        ):
+            num_skipped += 1
+            continue
 
         book_dict = {}
 
@@ -117,6 +139,11 @@ def make_files_for_delivery(in_file: Path, out_dir: Path) -> None:
 
         data.append(book_dict)
 
+    print(
+        f"Kept {len(data)} books, skipped {num_skipped} with Sámi paragraph share "
+        f"below {min_sami_paragraph_share}"
+    )
+
     df = pd.DataFrame(data)
 
     save_token_statistics_only(df, out_file=out_dir / "tokens_stats.jsonl")
@@ -125,6 +152,7 @@ def make_files_for_delivery(in_file: Path, out_dir: Path) -> None:
 
 if __name__ == "__main__":
     delivery_out_dir = Path("data/sámi_language_statistics/")
+    min_sami_paragraph_share = 0.01
 
     gielladetect_statistics_file = Path("data/language_statistics_gielladetect.jsonl")
     assert gielladetect_statistics_file.exists()
@@ -132,7 +160,9 @@ if __name__ == "__main__":
     print("Making gielladetect delivery files")
     gielladetect_out_dir = delivery_out_dir / "gielladetect/"
     gielladetect_out_dir.mkdir(exist_ok=True, parents=True)
-    make_files_for_delivery(gielladetect_statistics_file, gielladetect_out_dir)
+    make_files_for_delivery(
+        gielladetect_statistics_file, gielladetect_out_dir, min_sami_paragraph_share
+    )
 
     glotlid_statistics_file = Path("data/language_statistics_glotlid.jsonl")
     assert glotlid_statistics_file.exists()
@@ -140,4 +170,6 @@ if __name__ == "__main__":
     print("Making glotlid delivery files")
     glotlid_out_dir = delivery_out_dir / "glotlid/"
     glotlid_out_dir.mkdir(exist_ok=True, parents=True)
-    make_files_for_delivery(glotlid_statistics_file, glotlid_out_dir)
+    make_files_for_delivery(
+        glotlid_statistics_file, glotlid_out_dir, min_sami_paragraph_share
+    )
