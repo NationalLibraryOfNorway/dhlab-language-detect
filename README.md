@@ -33,8 +33,8 @@ De fordrer at filene fra språkdeteksjonen ligger på `data/db_langs/` (relativt
 Skriptet `language_statistics_per_text.py` lager språkstatistikk for bøker med avsnitt på minst ett av de samiske språkene innenfor avsnitt flere enn 10 tokens og færre enn 600 tokens.
 
 ### Lag JSONL-datasett
-Skriptet `create_files_for_delivery.py`  henter metadata fra Nettbibliotekets items-api og lager spesifikke kolonner per samiske språk for bedre tolkbarhet. Skriptet kjøres ved å pipe resultatet fra `language_statistics_per_text.py`:
+Skriptet `create_files_for_delivery.py` henter metadata fra Nettbibliotekets items-api og lager spesifikke kolonner per samiske språk for bedre tolkbarhet. Fordrer at skriptet `language_statistics_per_text.py` har kjørt ferdig
 
 ```bash
-cat language_statistics_glotlid.jsonl | pdm run create_files_for_delivery.py 
+pdm run create_files_for_delivery.py 
 ```
