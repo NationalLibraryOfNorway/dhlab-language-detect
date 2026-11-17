@@ -1,5 +1,6 @@
 import concurrent.futures
 from pathlib import Path
+from typing import TextIO
 
 import pandas as pd
 from tqdm import tqdm
@@ -22,18 +23,15 @@ def language_percentages_paragraphs(
     return languages.to_dict()["dhlabid"]
 
 
-def count_detected_languages(csv_file: Path, lang_column: str) -> pd.DataFrame:
-    df = pd.read_csv(csv_file)
+sami_language_codes = ["sme", "sma", "smj", "smi", "sms", "smn"]
 
-    # filter out too short and too long paragraphs (see plot_agreement.ipynb)
-    df = df[(df.tokens_para_text >= 10) & (df.tokens_para_text <= 600)]
+
+def statistics_per_text(df: pd.DataFrame, lang_column: str) -> pd.DataFrame:
+    """Make one row of language statistics per text, using the given lang column"""
 
     # filter out texts with no Sámi language paragraphs
     df = df.groupby(by="dhlabid").filter(
-        lambda df_: any(
-            x in df_[lang_column].unique()
-            for x in ["sme", "sma", "smj", "smi", "sms", "smn"]
-        )
+        lambda df_: df_[lang_column].isin(sami_language_codes).any()
     )
 
     return pd.DataFrame(
@@ -46,29 +44,59 @@ def count_detected_languages(csv_file: Path, lang_column: str) -> pd.DataFrame:
                 df_, lang_column
             ),
         }
-        for dhlabid, df_ in tqdm(df.groupby("dhlabid"), total=df.dhlabid.nunique())
+        for dhlabid, df_ in df.groupby("dhlabid")
     )
 
 
+def count_detected_languages(
+    csv_file: Path, glotlid_column: str, gielladetect_column: str
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Read the csv once and return the statistics dataframes for
+    (glotlid, gielladetect)"""
+    df = pd.read_csv(csv_file)
+
+    # filter out too short and too long paragraphs (see plot_agreement.ipynb)
+    df = df[(df.tokens_para_text >= 10) & (df.tokens_para_text <= 600)]
+
+    return (
+        statistics_per_text(df, glotlid_column),
+        statistics_per_text(df, gielladetect_column),
+    )
+
+
+def write_jsonl(df: pd.DataFrame, f: TextIO):
+    if df.empty:
+        return
+    f.write(df.to_json(orient="records", lines=True, force_ascii=False))
+    f.flush()
+
+
 def make_language_statistics_across_csvs(
-    csvs: list[Path], max_workers: int, lang_column: str, output_file: Path
+    csvs: list[Path],
+    max_workers: int,
+    glotlid_column: str,
+    gielladetect_column: str,
+    glotlid_output_file: Path,
+    gielladetect_output_file: Path,
 ):
     with (
         concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor,
-        output_file.open("w", encoding="utf-8") as f,
+        glotlid_output_file.open("w", encoding="utf-8") as glotlid_f,
+        gielladetect_output_file.open("w", encoding="utf-8") as gielladetect_f,
     ):
         futures = [
             executor.submit(
-                count_detected_languages, csv_file=csv_file, lang_column=lang_column
+                count_detected_languages,
+                csv_file=csv_file,
+                glotlid_column=glotlid_column,
+                gielladetect_column=gielladetect_column,
             )
             for csv_file in csvs
         ]
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(csvs)):
-            df = future.result()
-            if df.empty:
-                continue
-            f.write(df.to_json(orient="records", lines=True, force_ascii=False))
-            f.flush()
+            glotlid_df, gielladetect_df = future.result()
+            write_jsonl(glotlid_df, glotlid_f)
+            write_jsonl(gielladetect_df, gielladetect_f)
 
 
 if __name__ == "__main__":
@@ -79,11 +107,13 @@ if __name__ == "__main__":
 
     csvs = list((data_dir / "db_langs/").glob("*.csv"))
 
-    lang_columns = ["glotlid_lang", "gielladetect_lang"]
-    for lang_column in lang_columns:
-        make_language_statistics_across_csvs(
-            csvs=csvs,
-            max_workers=max_workers,
-            lang_column=lang_column,
-            output_file=data_dir / f"language_statistics_{lang_column}.jsonl",
-        )
+    glotlid_column = "glotlid_lang"
+    gielladetect_column = "gielladetect_lang"
+    make_language_statistics_across_csvs(
+        csvs=csvs,
+        max_workers=max_workers,
+        glotlid_column=glotlid_column,
+        gielladetect_column=gielladetect_column,
+        glotlid_output_file=data_dir / "language_statistics_glotlid.jsonl",
+        gielladetect_output_file=data_dir / "language_statistics_gielladetect.jsonl",
+    )

@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-sami_language_codes = ["sme", "sma", "smj", "smi", "sms", "smn"]
+from language_statistics_per_text import sami_language_codes
 
 columns_for_delivery = (
     ["title", "year", "names", "num_tokens", "num_paragraphs"]
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     delivery_out_dir = Path("data/sámi_language_statistics/")
 
     gielladetect_statistics_file = Path(
-        "data/language_statistics_gielladetect_lang.jsonl"
+        "data/language_statistics_gielladetect.jsonl"
     )
     assert gielladetect_statistics_file.exists()
 
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     gielladetect_out_dir.mkdir(exist_ok=True, parents=True)
     make_files_for_delivery(gielladetect_statistics_file, gielladetect_out_dir)
 
-    glotlid_statistics_file = Path("data/language_statistics_glotlid_lang.jsonl")
+    glotlid_statistics_file = Path("data/language_statistics_glotlid.jsonl")
     assert glotlid_statistics_file.exists()
 
     print("Making glotlid delivery files")
