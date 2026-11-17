@@ -30,11 +30,11 @@ Skriptene `count_...` analyserer utfilene fra språkdeteksjonen.
 De fordrer at filene fra språkdeteksjonen ligger på `data/db_langs/` (relativt til rota i denne mappa). 
 
 ### Lag språkstatistikk
-Skriptet `create_statistics.py` lager språkstatistikk for bøker med avsnitt på minst ett av de samiske språkene innenfor avsnitt flere enn 10 tokens og færre enn 600 tokens.
+Skriptet `language_statistics_per_text.py` lager språkstatistikk for bøker med avsnitt på minst ett av de samiske språkene innenfor avsnitt flere enn 10 tokens og færre enn 600 tokens.
 
 ### Lag JSONL-datasett
-Skriptet 'create_jsonl.py' henter metadata fra Nettbiblioteket og lager spesifikke kolonner per samiske språk for bedre tolkbarhet. Skriptet kjøres ved å pipe resultatet fra `create_statistics.py`:
+Skriptet `create_files_for_delivery.py`  henter metadata fra Nettbibliotekets items-api og lager spesifikke kolonner per samiske språk for bedre tolkbarhet. Skriptet kjøres ved å pipe resultatet fra `language_statistics_per_text.py`:
 
 ```bash
-cat language_statistics_glotlid.jsonl | pdm run create_jsonl.py 
+cat language_statistics_glotlid.jsonl | pdm run create_files_for_delivery.py 
 ```

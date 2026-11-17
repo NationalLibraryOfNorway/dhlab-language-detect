@@ -4,12 +4,19 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
+
 def language_percentages_tokens(df: pd.DataFrame, lang_column: str) -> dict[str, float]:
+    """Make a dict of {langcode: % of tokens in this language} (after filter)"""
     total_freq = df.sum()["tokens_para_text"]
     languages = df.groupby(lang_column).sum()["tokens_para_text"] / total_freq
     return languages.to_dict()
 
-def language_percentages_paragraphs(df: pd.DataFrame, lang_column: str) -> dict[str, float]:
+
+def language_percentages_paragraphs(
+    df: pd.DataFrame, lang_column: str
+) -> dict[str, float]:
+    """Make a dict of {langcode: % of paragraphs in this language} (after filter)"""
+
     total_paragraphs = len(df)
     languages = df.groupby(lang_column).count() / total_paragraphs
     return languages.to_dict()["dhlabid"]
@@ -18,9 +25,16 @@ def language_percentages_paragraphs(df: pd.DataFrame, lang_column: str) -> dict[
 def count_detected_languages(csv_file: Path, lang_column: str) -> pd.DataFrame:
     df = pd.read_csv(csv_file)
 
-    df = df[(df.tokens_para_text >=10) & (df.tokens_para_text <= 600)]
+    # filter out too short and too long paragraphs (see plot_agreement.ipynb)
+    df = df[(df.tokens_para_text >= 10) & (df.tokens_para_text <= 600)]
 
-    df_group = df.groupby(by="dhlabid").filter(lambda df_: any(x in df_[lang_column].unique() for x in ["sme", "sma", "smj", "smi", "sms", "smn"]))
+    # filter out texts with no Sámi language paragraphs
+    df = df.groupby(by="dhlabid").filter(
+        lambda df_: any(
+            x in df_[lang_column].unique()
+            for x in ["sme", "sma", "smj", "smi", "sms", "smn"]
+        )
+    )
 
     return pd.DataFrame(
         {
@@ -28,10 +42,12 @@ def count_detected_languages(csv_file: Path, lang_column: str) -> pd.DataFrame:
             "num_tokens": df_.sum()["tokens_para_text"],
             "num_paragraphs": len(df_),
             "language_statistics_tokens": language_percentages_tokens(df_, lang_column),
-            "language_statistics_paragraphs": language_percentages_paragraphs(df_, lang_column)
+            "language_statistics_paragraphs": language_percentages_paragraphs(
+                df_, lang_column
+            ),
         }
         for dhlabid, df_ in tqdm(df.groupby("dhlabid"), total=df.dhlabid.nunique())
-        )
+    )
 
 
 def make_language_statistics_across_csvs(
@@ -49,6 +65,7 @@ def make_language_statistics_across_csvs(
             dfs.append(future.result())
 
     df = pd.concat(dfs).to_json(output_file, index=False, lines=True, orient="records")
+    df.to_json(output_file, lines=True, orient="records")
 
 
 if __name__ == "__main__":

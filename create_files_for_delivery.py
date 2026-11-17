@@ -1,0 +1,130 @@
+import json
+from pathlib import Path
+
+import pandas as pd
+import requests
+
+sami_language_codes = ["sme", "sma", "smj", "smi", "sms", "smn"]
+
+columns_for_delivery = (
+    ["title", "year", "names", "num_tokens", "num_paragraphs"]
+    + [f"detected_{lang}_percentage" for lang in sami_language_codes]
+    + ["all_detected_languages", "library_languages"]
+)
+
+
+def get_metadata(dhlabid: str) -> dict:
+    """Get urn from dhlabid and add selected fields from nb.no/items metadata"""
+    r = requests.get(f"https://api.nb.no/dhlab/id/{dhlabid}")
+    urn = r.json()["urn"]["0"]
+
+    r2 = requests.get(f"https://api.nb.no/catalog/v1/items/{urn}?fields=metadata")
+
+    nb_metadata = r2.json().get("metadata")
+
+    metadata_dict = {}
+    metadata_dict["urn"] = urn
+    metadata_dict["title"] = nb_metadata.get("title")
+
+    metadata_dict["year"] = nb_metadata.get("originInfo").get("issued")
+
+    metadata_dict["library_languages"] = [
+        x["code"] for x in nb_metadata.get("languages")
+    ]
+
+    metadata_dict["names"] = [x["name"] for x in nb_metadata.get("people")]
+    return metadata_dict
+
+
+def save_token_statistics_only(df: pd.DataFrame, out_file: Path) -> None:
+    """Rename token-specific statistics columns to the general statistics column names and save"""
+    token_statistics_column_mapper = {
+        f"detected_{lang}_tokens": f"detected_{lang}_percentage"
+        for lang in sami_language_codes
+    }
+    token_statistics_column_mapper["all_detected_languages_tokens"] = (
+        "all_detected_languages"
+    )
+    df = df.rename(columns=token_statistics_column_mapper)
+    df[columns_for_delivery].to_json(
+        out_file, lines=True, orient="records", index=False
+    )
+
+
+def save_paragraphs_statistics_only(df: pd.DataFrame, out_file: Path) -> None:
+    """Rename paragraph-specific statistics columns to the general statistics column names and save"""
+    paragraph_statistics_column_mapper = {
+        f"detected_{lang}_paragraphs": f"detected_{lang}_percentage"
+        for lang in sami_language_codes
+    }
+    paragraph_statistics_column_mapper["all_detected_languages_paragraphs"] = (
+        "all_detected_languages"
+    )
+
+    paragraphs_df = df.rename(columns=paragraph_statistics_column_mapper)
+    paragraphs_df[columns_for_delivery].to_json(
+        out_file, lines=True, orient="records", index=False
+    )
+
+
+def make_files_for_delivery(in_file: Path, out_dir: Path) -> None:
+    """Fetch nb metadata and add Sámi language statistics as columns separate from the other languages detected.
+    Make separate files for language statistics based on % of tokens and % of paragraphs. The files share the same columns
+    """
+
+    data = []
+
+    for line in in_file.open():
+        json_line = json.loads(line)
+
+        book_dict = {}
+
+        book_dict["all_detected_languages_tokens"] = json_line[
+            "language_statistics_tokens"
+        ]
+        book_dict["all_detected_languages_paragraphs"] = json_line[
+            "language_statistics_paragraphs"
+        ]
+
+        for lang in sami_language_codes:
+            book_dict[f"detected_{lang}_tokens"] = book_dict[
+                "all_detected_languages_tokens"
+            ].get(lang, 0.0)
+            book_dict[f"detected_{lang}_paragraphs"] = book_dict[
+                "all_detected_languages_paragraphs"
+            ].get(lang, 0.0)
+
+        book_dict["num_tokens"] = json_line["num_tokens"]
+        book_dict["num_paragraphs"] = json_line["num_paragraphs"]
+
+        book_dict["dhlabid"] = json_line["dhlabid"]
+        book_dict.update(get_metadata(dhlabid=book_dict["dhlabid"]))
+
+        data.append(book_dict)
+
+    df = pd.DataFrame(data)
+
+    save_token_statistics_only(df, out_file=out_dir / "tokens_stats.jsonl")
+    save_paragraphs_statistics_only(df, out_file=out_dir / "paragraphs_stats.jsonl")
+
+
+if __name__ == "__main__":
+    delivery_out_dir = Path("data/sámi_language_statistics/")
+
+    gielladetect_statistics_file = Path(
+        "data/language_statistics_gielladetect_lang.jsonl"
+    )
+    assert gielladetect_statistics_file.exists()
+
+    print("Making gielladetect delivery files")
+    gielladetect_out_dir = delivery_out_dir / "gielladetect/"
+    gielladetect_out_dir.mkdir(exist_ok=True, parents=True)
+    make_files_for_delivery(gielladetect_statistics_file, gielladetect_out_dir)
+
+    glotlid_statistics_file = Path("data/language_statistics_glotlid_lang.jsonl")
+    assert glotlid_statistics_file.exists()
+
+    print("Making glotlid delivery files")
+    glotlid_out_dir = delivery_out_dir / "glotlid/"
+    glotlid_out_dir.mkdir(exist_ok=True, parents=True)
+    make_files_for_delivery(glotlid_statistics_file, glotlid_out_dir)
