@@ -7,20 +7,40 @@ import requests
 from language_statistics_per_text import sami_language_codes
 
 columns_for_delivery = (
-    ["title", "year", "names", "num_tokens", "num_paragraphs"]
-    + [f"detected_{lang}_percentage" for lang in sami_language_codes]
-    + ["all_detected_languages", "library_languages"]
+    [
+        "title",
+        "year",
+        "names",
+    ]
+    + [f"detected_{lang}_share" for lang in sami_language_codes]
+    + [
+        "urn",
+        "dhlabid",
+        "all_detected_languages",
+        "library_languages",
+        "num_tokens",
+        "num_paragraphs",
+    ]
 )
 
 
-def get_metadata(dhlabid: str) -> dict:
-    """Get urn from dhlabid and add selected fields from nb.no/items metadata.
+def get_urn(dhlabid: str) -> str | None:
+    """Get urn from dhlabid"""
+    try:
+        r = requests.get(f"https://api.nb.no/dhlab/id/{dhlabid}", timeout=30)
+        r.raise_for_status()
+        return r.json()["urn"]["0"]
+    except requests.RequestException as e:
+        print(f"Warning: could not get urn for dhlabid {dhlabid}: {e!r}")
+
+
+def get_metadata(urn: str) -> dict:
+    """Add selected fields from nb.no/items metadata.
 
     If the lookup fails, a warning is printed and the fields are set to None,
     so a single bad id does not stop the whole run.
     """
     metadata_dict = {
-        "urn": None,
         "title": None,
         "year": None,
         "library_languages": None,
@@ -28,11 +48,6 @@ def get_metadata(dhlabid: str) -> dict:
     }
 
     try:
-        r = requests.get(f"https://api.nb.no/dhlab/id/{dhlabid}", timeout=30)
-        r.raise_for_status()
-        urn = r.json()["urn"]["0"]
-        metadata_dict["urn"] = urn
-
         r2 = requests.get(
             f"https://api.nb.no/catalog/v1/items/{urn}?fields=metadata", timeout=30
         )
@@ -44,9 +59,11 @@ def get_metadata(dhlabid: str) -> dict:
         metadata_dict["library_languages"] = [
             x["code"] for x in nb_metadata.get("languages") or []
         ]
-        metadata_dict["names"] = [x["name"] for x in nb_metadata.get("people") or []]
-    except (requests.RequestException, ValueError, KeyError, TypeError) as e:
-        print(f"Warning: could not get metadata for dhlabid {dhlabid}: {e!r}")
+        metadata_dict["names"] = [
+            x.get("name") for x in nb_metadata.get("people", []) if "name" in x
+        ]
+    except requests.RequestException as e:
+        print(f"Warning: could not get metadata for urn {urn}: {e!r}")
 
     return metadata_dict
 
@@ -54,7 +71,7 @@ def get_metadata(dhlabid: str) -> dict:
 def save_token_statistics_only(df: pd.DataFrame, out_file: Path) -> None:
     """Rename token-specific statistics columns to the general statistics column names and save"""
     token_statistics_column_mapper = {
-        f"detected_{lang}_tokens": f"detected_{lang}_percentage"
+        f"detected_{lang}_tokens": f"detected_{lang}_share"
         for lang in sami_language_codes
     }
     token_statistics_column_mapper["all_detected_languages_tokens"] = (
@@ -69,7 +86,7 @@ def save_token_statistics_only(df: pd.DataFrame, out_file: Path) -> None:
 def save_paragraphs_statistics_only(df: pd.DataFrame, out_file: Path) -> None:
     """Rename paragraph-specific statistics columns to the general statistics column names and save"""
     paragraph_statistics_column_mapper = {
-        f"detected_{lang}_paragraphs": f"detected_{lang}_percentage"
+        f"detected_{lang}_paragraphs": f"detected_{lang}_share"
         for lang in sami_language_codes
     }
     paragraph_statistics_column_mapper["all_detected_languages_paragraphs"] = (
@@ -108,6 +125,10 @@ def make_files_for_delivery(
     for line in in_file.open():
         json_line = json.loads(line)
 
+        urn = get_urn(json_line["dhlabid"])
+        if urn is None:
+            continue
+
         if not has_enough_sami_paragraphs(
             json_line["language_statistics_paragraphs"], min_sami_paragraph_share
         ):
@@ -115,6 +136,9 @@ def make_files_for_delivery(
             continue
 
         book_dict = {}
+
+        book_dict["dhlabid"] = json_line["dhlabid"]
+        book_dict["urn"] = urn
 
         book_dict["all_detected_languages_tokens"] = json_line[
             "language_statistics_tokens"
@@ -134,8 +158,7 @@ def make_files_for_delivery(
         book_dict["num_tokens"] = json_line["num_tokens"]
         book_dict["num_paragraphs"] = json_line["num_paragraphs"]
 
-        book_dict["dhlabid"] = json_line["dhlabid"]
-        book_dict.update(get_metadata(dhlabid=book_dict["dhlabid"]))
+        book_dict.update(get_metadata(urn=book_dict["urn"]))
 
         data.append(book_dict)
 
@@ -152,7 +175,7 @@ def make_files_for_delivery(
 
 if __name__ == "__main__":
     delivery_out_dir = Path("data/sámi_language_statistics/")
-    min_sami_paragraph_share = 0.01
+    min_sami_paragraph_share = 0.1
 
     gielladetect_statistics_file = Path("data/language_statistics_gielladetect.jsonl")
     assert gielladetect_statistics_file.exists()

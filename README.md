@@ -29,12 +29,9 @@ pdm run hf download cis-lmu/glotlid model_v3.bin --local-dir ./models
 Skriptene `count_...` analyserer utfilene fra språkdeteksjonen. 
 De fordrer at filene fra språkdeteksjonen ligger på `data/db_langs/` (relativt til rota i denne mappa). 
 
-### Lag språkstatistikk
+
+### Språkstatistikk om samiske språk
 Skriptet `language_statistics_per_text.py` lager språkstatistikk for bøker med avsnitt på minst ett av de samiske språkene innenfor avsnitt flere enn 10 tokens og færre enn 600 tokens.
 
-### Lag JSONL-datasett
-Skriptet `create_files_for_delivery.py` henter metadata fra Nettbibliotekets items-api og lager spesifikke kolonner per samiske språk for bedre tolkbarhet. Fordrer at skriptet `language_statistics_per_text.py` har kjørt ferdig
-
-```bash
-pdm run create_files_for_delivery.py 
-```
+Skriptet `create_files_for_delivery.py` henter metadata fra Nettbibliotekets items-api og lager spesifikke kolonner per samiske språk for bedre tolkbarhet.  
+Fordrer at skriptet `language_statistics_per_text.py` har kjørt ferdig
