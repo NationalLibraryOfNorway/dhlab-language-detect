@@ -55,7 +55,7 @@ def count_detected_languages(
     (glotlid, gielladetect)"""
     df = pd.read_csv(csv_file)
 
-    # filter out too short and too long paragraphs (see plot_agreement.ipynb)
+    # filter out too short and too long paragraphs (see notebooks/plot_agreement.ipynb)
     df = df[(df.tokens_para_text >= 10) & (df.tokens_para_text <= 600)]
 
     return (
