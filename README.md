@@ -60,4 +60,4 @@ I notebooken `plot_agreement.ipynb` leser vi output fra `count_agreement.py`. Vi
 Utfilene fra `language_statistics_per_text.py` viser at Gielladetect detekterer samisk i minst ett avsnitt i 379 150 bøker.  
 For glotlid er det tilsvarende tallet 185 403.  
 
-I notebooken `sami_language_statistics.ipynb` ser vi på utfilene fra `create_file_for_delivery` (de ligger i). Vi ser på antall bøker på forskjellige språk, og hvorvidt de detekterte språka stemmer overens med bibliotekets metadata. M.a.o litt eksempelkode for hvordan man kan jobbe videre med disse dataene.
+I notebooken `sami_language_statistics.ipynb` ser vi på utfilene fra `create_file_for_delivery.py`. Vi ser på antall bøker på forskjellige språk, og hvorvidt de detekterte språka stemmer overens med bibliotekets metadata. M.a.o litt eksempelkode for hvordan man kan jobbe videre med disse dataene.
